@@ -12,6 +12,8 @@ public class Migration_002_DisableTimeMachine : IDatabaseMigration
     
     public string SqliteScript => GetSqliteScript();
 
+    public string PostgreSqlScript => GetSqliteScript();
+
     private static string GetSqlServerScript()
     {
         return @"

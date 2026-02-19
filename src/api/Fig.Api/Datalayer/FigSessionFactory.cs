@@ -1,11 +1,8 @@
-using System.Data.Common;
 using Fig.Api.Constants;
-using Fig.Api.ExtensionMethods;
 using Fig.Client.Abstractions.Data;
 using Fig.Contracts.Authentication;
 using Fig.Datalayer.BusinessEntities;
 using Fig.Datalayer.Mappings;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using NHibernate;
 using NHibernate.Cfg;
@@ -21,17 +18,23 @@ public class FigSessionFactory : IFigSessionFactory
     private readonly ILogger<FigSessionFactory> _logger;
     private readonly IOptions<ApiSettings> _settings;
     private readonly IConfiguration _appConfiguration;
+    private readonly IDatabaseProviderResolver _databaseProviderResolver;
     private Configuration? _configuration;
     private bool _isDatabaseNewlyCreated;
     private HbmMapping? _mapping;
     private ISessionFactory? _sessionFactory;
-    private bool? _isSqlLite;
+    private DatabaseProviderType? _databaseProvider;
 
-    public FigSessionFactory(ILogger<FigSessionFactory> logger, IOptions<ApiSettings> settings, IConfiguration appConfiguration)
+    public FigSessionFactory(
+        ILogger<FigSessionFactory> logger,
+        IOptions<ApiSettings> settings,
+        IConfiguration appConfiguration,
+        IDatabaseProviderResolver databaseProviderResolver)
     {
         _logger = logger;
         _settings = settings;
         _appConfiguration = appConfiguration;
+        _databaseProviderResolver = databaseProviderResolver;
         
         MigrateDatabase();
         CreateDefaultUser();
@@ -90,11 +93,12 @@ public class FigSessionFactory : IFigSessionFactory
     private Configuration CreateConfiguration()
     {
         var connectionString = PrepareConnectionString();
+        var provider = GetProvider(connectionString);
         var configuration = new Configuration();
         
         configuration.SetProperty("connection.connection_string", connectionString);
-        configuration.SetProperty("connection.driver_class", GetDriverClass(connectionString));
-        configuration.SetProperty("dialect", GetDialect(connectionString));
+        configuration.SetProperty("connection.driver_class", _databaseProviderResolver.GetDriverClass(provider));
+        configuration.SetProperty("dialect", _databaseProviderResolver.GetDialect(provider));
 
         //Loads properties from hibernate.cfg.xml
         configuration.Configure();
@@ -105,49 +109,16 @@ public class FigSessionFactory : IFigSessionFactory
         return configuration;
     }
 
-    private string GetDialect(string? connectionString)
+    private DatabaseProviderType GetProvider(string? connectionString)
     {
-        return IsSqlLite(connectionString)
-            ? "NHibernate.Dialect.SQLiteDialect"
-            : "NHibernate.Dialect.MsSql2012Dialect";
-    }
+        if (_databaseProvider is not null)
+            return _databaseProvider.Value;
 
-    private string GetDriverClass(string? connectionString)
-    {
-        return IsSqlLite(connectionString)
-            ? "NHibernate.Driver.SQLite20Driver"
-            : "NHibernate.Driver.MicrosoftDataSqlClientDriver";
-    }
-    
-    private bool IsSqlLite(string? connectionString)
-    {
-        if (_isSqlLite is not null)
-            return _isSqlLite.Value;
-        
         if (string.IsNullOrWhiteSpace(connectionString))
             throw new ArgumentException("Connection string cannot be null or empty.", nameof(connectionString));
 
-        var builder = new DbConnectionStringBuilder { ConnectionString = connectionString };
-
-        // Check for SQLite indicators
-        object? uri = null;
-        if (builder.TryGetValue("Data Source", out var dataSource) || 
-            builder.TryGetValue("URI", out uri))
-        {
-            string dataSourceValue = dataSource?.ToString() ?? uri?.ToString() ?? string.Empty;
-            if (!string.IsNullOrEmpty(dataSourceValue) && 
-                (dataSourceValue.EndsWith(".sqlite", StringComparison.OrdinalIgnoreCase) ||
-                 dataSourceValue.EndsWith(".db", StringComparison.OrdinalIgnoreCase) ||
-                 dataSourceValue.Equals(":memory:", StringComparison.OrdinalIgnoreCase) ||
-                 dataSourceValue.StartsWith("file:", StringComparison.OrdinalIgnoreCase)))
-            {
-                _isSqlLite = true;
-                return _isSqlLite.Value;
-            }
-        }
-
-        _isSqlLite = false;
-        return _isSqlLite.Value;
+        _databaseProvider = _databaseProviderResolver.ResolveProvider(connectionString);
+        return _databaseProvider.Value;
     }
 
     private HbmMapping CreateMapping()
@@ -221,26 +192,14 @@ public class FigSessionFactory : IFigSessionFactory
             return null;
         }
 
-        if (!IsSqlLite(connectionString))
+        var provider = GetProvider(connectionString);
+        if (provider != DatabaseProviderType.Sqlite)
         {
-            var builder = new SqlConnectionStringBuilder(connectionString);
-            
-            // Log the connection string (with masked password)
-            var logBuilder = new SqlConnectionStringBuilder(connectionString);
-            if (!string.IsNullOrWhiteSpace(logBuilder.Password))
-            {
-                logBuilder.Password = "******";
-            }
-            _logger.LogInformation("Connecting to database with connection string {ConnectionString}", logBuilder.ToString());
-            
-            // Update connection string with MultipleActiveResultSets if needed
-            if (!builder.MultipleActiveResultSets)
-            {
-                builder.MultipleActiveResultSets = true;
-                connectionString = builder.ConnectionString;
-            }
+            var logConnectionString = _databaseProviderResolver.GetConnectionStringForLogging(connectionString);
+            _logger.LogInformation("Connecting to database with connection string {ConnectionString}",
+                logConnectionString);
         }
 
-        return connectionString.NormalizeToLegacyConnectionString();
+        return _databaseProviderResolver.NormalizeConnectionString(provider, connectionString);
     }
 }

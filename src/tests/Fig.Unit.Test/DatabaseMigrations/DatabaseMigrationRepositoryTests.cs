@@ -1,4 +1,5 @@
 using Fig.Api.DatabaseMigrations;
+using Fig.Api.Datalayer;
 using Fig.Api.Datalayer.Repositories;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -16,6 +17,7 @@ public class DatabaseMigrationRepositoryTests
     private Mock<ISessionFactory> _mockSessionFactory = null!;
     private Mock<DbConnection> _mockConnection = null!;
     private Mock<ILogger<DatabaseMigrationRepository>> _mockLogger = null!;
+    private IDatabaseProviderResolver _databaseProviderResolver = null!;
     private DatabaseMigrationRepository _repository = null!;
 
     [SetUp]
@@ -25,10 +27,15 @@ public class DatabaseMigrationRepositoryTests
         _mockSessionFactory = new Mock<ISessionFactory>();
         _mockConnection = new Mock<DbConnection>();
         _mockLogger = new Mock<ILogger<DatabaseMigrationRepository>>();
+        _databaseProviderResolver = new DatabaseProviderResolver();
         
         _mockSession.Setup(s => s.Connection).Returns(_mockConnection.Object);
         
-        _repository = new DatabaseMigrationRepository(_mockSession.Object, _mockSessionFactory.Object, _mockLogger.Object);
+        _repository = new DatabaseMigrationRepository(
+            _mockSession.Object,
+            _mockSessionFactory.Object,
+            _mockLogger.Object,
+            _databaseProviderResolver);
     }
 
     [Test]
@@ -76,11 +83,27 @@ public class DatabaseMigrationRepositoryTests
         Assert.That(result, Is.EqualTo("SQLite Script"));
     }
 
+    [Test]
+    public async Task GetScriptForDatabase_ShouldReturnPostgreSqlScript_WhenConnectionIsPostgreSql()
+    {
+        // Arrange
+        _mockConnection.Setup(c => c.ConnectionString).Returns("Host=localhost;Database=TestDb;Username=fig;Password=test");
+
+        var migration = new TestMigration();
+
+        // Act
+        var result = await _repository.GetScriptForDatabase(migration);
+
+        // Assert
+        Assert.That(result, Is.EqualTo("PostgreSQL Script"));
+    }
+
     private class TestMigration : IDatabaseMigration
     {
         public int ExecutionNumber => 1;
         public string Description => "Test Migration";
         public string SqlServerScript => "SQL Server Script";
         public string SqliteScript => "SQLite Script";
+        public string PostgreSqlScript => "PostgreSQL Script";
     }
 }
