@@ -22,6 +22,30 @@ description = "Run integration tests"
 depends = ["build"]
 run = "dotnet test src/tests/Fig.Integration.Test/Fig.Integration.Test.csproj --no-build"
 
+[tasks.pack]
+description = "Build non-testing NuGet packages to artifacts/nuget"
+depends = ["restore"]
+run = """
+mkdir -p artifacts/nuget
+
+projects=(
+  src/client/Fig.Client.Abstractions/Fig.Client.Abstractions.csproj
+  src/client/Fig.Client.Contracts/Fig.Client.Contracts.csproj
+  src/client/Fig.Client/Fig.Client.csproj
+  src/client/Fig.Client.SecretProvider.Aws/Fig.Client.SecretProvider.Aws.csproj
+  src/client/Fig.Client.SecretProvider.Azure/Fig.Client.SecretProvider.Azure.csproj
+  src/client/Fig.Client.SecretProvider.Docker/Fig.Client.SecretProvider.Docker.csproj
+  src/client/Fig.Client.SecretProvider.Dpapi/Fig.Client.SecretProvider.Dpapi.csproj
+  src/client/Fig.Client.SecretProvider.Google/Fig.Client.SecretProvider.Google.csproj
+  src/common/Fig.WebHooks.Contracts/Fig.WebHooks.Contracts.csproj
+  src/hosting/Fig.Aspire/Fig.Aspire.csproj
+)
+
+for project in "${projects[@]}"; do
+  dotnet pack "$project" --configuration Release --no-restore --output artifacts/nuget
+done
+"""
+
 [tasks.api_run]
 description = "Run Fig API from source"
 run = "dotnet run --project src/api/Fig.Api/Fig.Api.csproj"

@@ -1,0 +1,117 @@
+name: "Deploy to Private Docker Registry"
+
+on:
+    workflow_run:
+        workflows: ["Create Release"]
+        types:
+            - completed
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: write
+    deployments: write
+
+env:
+    DOCKER_REGISTRY: ${{ secrets.SOLID_DOCKER_REGISTRY_URL }}
+    DOCKER_USERNAME: ${{ secrets.SOLID_DOCKER_REGISTRY_USERNAME }}
+    DOCKER_PASSWORD: ${{ secrets.SOLID_DOCKER_REGISTRY_PASSWORD }}
+
+jobs:
+    build:
+        name: Build and push images
+        runs-on: ubuntu-latest
+        if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  ref: ${{ github.event.workflow_run.head_branch }}
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Get version
+              id: version
+              run: |
+                  version="${{ github.event.workflow_run.head_branch }}"
+                  version=${version#v}
+                  echo "version-without-v=$version" >> $GITHUB_OUTPUT
+                  echo "IMAGE_WEB=${{ env.DOCKER_REGISTRY }}/fig-web" >> $GITHUB_ENV
+                  echo "IMAGE_API=${{ env.DOCKER_REGISTRY }}/fig-api" >> $GITHUB_ENV
+                  echo "IMAGE_SENTINEL=${{ env.DOCKER_REGISTRY }}/fig-sentinel-integration" >> $GITHUB_ENV
+
+            - name: Login to Docker registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.DOCKER_REGISTRY }}
+                  username: ${{ env.DOCKER_USERNAME }}
+                  password: ${{ env.DOCKER_PASSWORD }}
+
+            - name: Build and push Web
+              id: docker_build_web
+              uses: docker/build-push-action@v6
+              with:
+                  context: ./src
+                  file: ./src/web/Fig.Web/Dockerfile
+                  push: true
+                  tags: ${{ env.IMAGE_WEB }}:latest,${{ env.IMAGE_WEB }}:${{ steps.version.outputs.version-without-v }}
+
+            - name: Build and push Api
+              id: docker_build_api
+              uses: docker/build-push-action@v6
+              with:
+                  context: ./src
+                  file: ./src/api/Fig.Api/Dockerfile
+                  push: true
+                  tags: ${{ env.IMAGE_API }}:latest,${{ env.IMAGE_API }}:${{ steps.version.outputs.version-without-v }}
+
+            # - name: Build and push Microsoft Sentinel Integration
+            #   id: docker_build_sentinel
+            #   uses: docker/build-push-action@v6
+            #   with:
+            #       context: ./src
+            #       file: ./src/integrations/Fig.Integration.MicrosoftSentinel/Dockerfile
+            #       push: true
+            #       tags: ${{ env.IMAGE_SENTINEL }}:latest,${{ env.IMAGE_SENTINEL }}:${{ steps.version.outputs.version-without-v }}
+
+            - name: Create GitHub deployment
+              uses: chrnorm/deployment-action@v2
+              id: gh_deployment
+              with:
+                  token: ${{ github.token }}
+                  environment: production
+                  ref: ${{ github.event.workflow_run.head_branch }}
+
+            - name: Update deployment status (success)
+              if: steps.docker_build_web.outcome == 'success' && steps.docker_build_api.outcome == 'success'
+              uses: chrnorm/deployment-status@v2
+              with:
+                  token: ${{ github.token }}
+                  state: success
+                  deployment-id: ${{ steps.gh_deployment.outputs.deployment_id }}
+
+            - name: Update deployment status (failure)
+              if: always() && steps.gh_deployment.outputs.deployment_id != '' && (steps.docker_build_web.outcome == 'failure' || steps.docker_build_api.outcome == 'failure')
+              uses: chrnorm/deployment-status@v2
+              with:
+                  token: ${{ github.token }}
+                  state: failure
+                  deployment-id: ${{ steps.gh_deployment.outputs.deployment_id }}
+
+            - name: Build summary
+              if: steps.docker_build_web.outcome == 'success' && steps.docker_build_api.outcome == 'success'
+              run: |
+                  echo "## Deploy to Private Docker Registry - Summary" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Version:** ${{ steps.version.outputs.version-without-v }}" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Images pushed:**" >> $GITHUB_STEP_SUMMARY
+                  echo "  - \`${{ env.IMAGE_WEB }}:${{ steps.version.outputs.version-without-v }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "  - \`${{ env.IMAGE_API }}:${{ steps.version.outputs.version-without-v }}\`" >> $GITHUB_STEP_SUMMARY
+                  # echo "  - \`${{ env.IMAGE_SENTINEL }}:${{ steps.version.outputs.version-without-v }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Build Time:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+              shell: bash
