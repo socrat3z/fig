@@ -126,6 +126,58 @@ Examples can be found [here](https://github.com/mzbrau/fig/tree/main/examples).
 
 There is also a quick start repository [here](https://github.com/mzbrau/fig-quick-start).
 
+### Local Dev with PostgreSQL
+
+You can run a local Fig development environment backed by PostgreSQL:
+
+```bash
+docker compose -f docker-compose.postgres.yml up -d
+```
+
+Optional environment variables (with defaults in the compose file):
+
+- `FIG_PG_DB`
+- `FIG_PG_USER`
+- `FIG_PG_PASSWORD`
+
+### Local Source Build Dev with PostgreSQL
+
+You can also build and run from your local checked-out source (instead of prebuilt images):
+
+```bash
+docker compose -f docker-compose.postgres.dev.yml up --build
+```
+
+This uses:
+
+- `src/api/Fig.Api/Dockerfile`
+- `src/web/Fig.Web/Dockerfile`
+
+### Mise Tasks
+
+This repository includes a `mise.toml` with common development tasks.
+
+List tasks:
+
+```bash
+mise tasks ls
+```
+
+Run tasks:
+
+```bash
+mise run restore
+mise run build
+mise run test
+mise run pg_up
+mise run pg_dev_up
+```
+
+PostgreSQL-related tasks in `mise.toml`:
+
+- `pg_up`, `pg_down`, `pg_logs` (prebuilt images)
+- `pg_dev_build`, `pg_dev_up`, `pg_dev_down`, `pg_dev_logs` (source build flow)
+
 ## Fig NuGet Packages
 
 Fig provides several NuGet packages to support different integration scenarios and environments:

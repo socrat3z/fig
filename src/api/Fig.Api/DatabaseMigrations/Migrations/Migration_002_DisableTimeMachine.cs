@@ -12,6 +12,8 @@ public class Migration_002_DisableTimeMachine : IDatabaseMigration
     
     public string SqliteScript => GetSqliteScript();
 
+    public string PostgreSqlScript => GetPostgreSqlScript();
+
     private static string GetSqlServerScript()
     {
         return @"
@@ -33,6 +35,19 @@ PRINT 'Time machine feature disabled in configuration table';
 UPDATE configuration 
 SET enable_time_machine = 0
 WHERE enable_time_machine = 1;
+
+SELECT 'Time machine feature disabled in configuration table' as migration_result;
+";
+    }
+
+    private static string GetPostgreSqlScript()
+    {
+        return @"
+-- Disable time machine feature in the configuration table
+-- PostgreSQL uses boolean TRUE/FALSE values
+UPDATE configuration
+SET enable_time_machine = FALSE
+WHERE enable_time_machine IS TRUE;
 
 SELECT 'Time machine feature disabled in configuration table' as migration_result;
 ";

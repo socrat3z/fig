@@ -21,6 +21,7 @@ public class MigrationDiscoveryTests
         Assert.That(migration.Description, Is.EqualTo("Disable time machine feature in configuration table"));
         Assert.That(migration.SqlServerScript, Is.Not.Empty);
         Assert.That(migration.SqliteScript, Is.Not.Empty);
+        Assert.That(migration.PostgreSqlScript, Is.Not.Empty);
     }
     
     [Test]
@@ -49,6 +50,21 @@ public class MigrationDiscoveryTests
         // Assert
         Assert.That(script, Does.Contain("UPDATE configuration"));
         Assert.That(script, Does.Contain("enable_time_machine = 0"));
+    }
+
+    [Test]
+    public void Migration_002_PostgreSqlScript_ShouldUseBooleanLiterals()
+    {
+        // Arrange
+        var migration = new Migration_002_DisableTimeMachine();
+
+        // Act
+        var script = migration.PostgreSqlScript;
+
+        // Assert
+        Assert.That(script, Does.Contain("UPDATE configuration"));
+        Assert.That(script, Does.Contain("enable_time_machine = FALSE"));
+        Assert.That(script, Does.Contain("enable_time_machine IS TRUE"));
     }
     
     [Test]
