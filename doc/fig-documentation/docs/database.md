@@ -30,3 +30,44 @@ Fig currently supports:
   }
 }
 ```
+
+## Local Development Compose (PostgreSQL)
+
+The repository includes a PostgreSQL-based development compose file:
+
+```bash
+docker compose -f docker-compose.postgres.yml up -d
+```
+
+It starts:
+
+- PostgreSQL (`fig-postgres`)
+- Fig API (`fig-api`)
+- Fig Web (`fig-web`)
+
+Optional environment variables:
+
+- `FIG_PG_DB`
+- `FIG_PG_USER`
+- `FIG_PG_PASSWORD`
+
+## Local Source Build Compose (PostgreSQL)
+
+To build and run directly from local source (not prebuilt images):
+
+```bash
+docker compose -f docker-compose.postgres.dev.yml up --build
+```
+
+## Mise Task Shortcuts
+
+The repository root includes a `mise.toml` with task shortcuts for common local workflows.
+
+Examples:
+
+```bash
+mise run restore
+mise run test
+mise run pg_up
+mise run pg_dev_up
+```

@@ -1,28 +1,24 @@
-﻿# Run from src directory
-# docker build -f api/Fig.Api/Dockerfile -t fig.api .
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-WORKDIR /app
-EXPOSE 80
-EXPOSE 443
-
-RUN apt-get update \
-    && apt-get install -y curl
+﻿# Build from repository `src` directory context.
+# Example:
+# docker build -f api/Fig.Api/Dockerfile -t fig.api ./src
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
 
-RUN apt update
-RUN apt install git
-WORKDIR /data
-RUN git clone https://github.com/mzbrau/fig.git /data/app
-WORKDIR /data/app/src
-
+COPY . .
 RUN dotnet restore "api/Fig.Api/Fig.Api.csproj"
-RUN dotnet build "api/Fig.Api/Fig.Api.csproj" -c Release -o /app/build
+RUN dotnet publish "api/Fig.Api/Fig.Api.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
-FROM build AS publish
-RUN dotnet publish "api/Fig.Api/Fig.Api.csproj" -c Release -o /app/publish
-
-FROM base AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+EXPOSE 8080
+EXPOSE 8443
+
+COPY --from=build /app/publish .
+
 ENTRYPOINT ["dotnet", "Fig.Api.dll"]

@@ -1,0 +1,59 @@
+[tasks.restore]
+description = "Restore .NET solution dependencies"
+run = "dotnet restore src/Fig.sln"
+
+[tasks.build]
+description = "Build solution in Debug mode"
+depends = ["restore"]
+run = "dotnet build src/Fig.sln --configuration Debug --no-restore"
+
+[tasks.test]
+description = "Run all tests in solution"
+depends = ["build"]
+run = "dotnet test src/Fig.sln --no-build"
+
+[tasks.test_unit]
+description = "Run unit tests"
+depends = ["build"]
+run = "dotnet test src/tests/Fig.Unit.Test/Fig.Unit.Test.csproj --no-build"
+
+[tasks.test_integration]
+description = "Run integration tests"
+depends = ["build"]
+run = "dotnet test src/tests/Fig.Integration.Test/Fig.Integration.Test.csproj --no-build"
+
+[tasks.api_run]
+description = "Run Fig API from source"
+run = "dotnet run --project src/api/Fig.Api/Fig.Api.csproj"
+
+[tasks.web_run]
+description = "Run Fig Web from source"
+run = "dotnet run --project src/web/Fig.Web/Fig.Web.csproj"
+
+[tasks.pg_up]
+description = "Start PostgreSQL-based local dev stack (prebuilt images)"
+run = "docker compose -f docker-compose.postgres.yml up -d"
+
+[tasks.pg_down]
+description = "Stop PostgreSQL-based local dev stack (prebuilt images)"
+run = "docker compose -f docker-compose.postgres.yml down"
+
+[tasks.pg_logs]
+description = "Tail logs for PostgreSQL-based local dev stack (prebuilt images)"
+run = "docker compose -f docker-compose.postgres.yml logs -f"
+
+[tasks.pg_dev_build]
+description = "Build source-based PostgreSQL dev stack images"
+run = "docker compose -f docker-compose.postgres.dev.yml build"
+
+[tasks.pg_dev_up]
+description = "Build and start source-based PostgreSQL dev stack"
+run = "docker compose -f docker-compose.postgres.dev.yml up --build"
+
+[tasks.pg_dev_down]
+description = "Stop source-based PostgreSQL dev stack"
+run = "docker compose -f docker-compose.postgres.dev.yml down -v"
+
+[tasks.pg_dev_logs]
+description = "Tail logs for source-based PostgreSQL dev stack"
+run = "docker compose -f docker-compose.postgres.dev.yml logs -f"

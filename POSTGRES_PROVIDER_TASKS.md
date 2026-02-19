@@ -1,6 +1,7 @@
 # PostgreSQL Provider Tasks
 
 ## Work Items
+- [x] Fix PostgreSQL boolean literal mismatch in migration 002 (`TRUE/FALSE` vs `0/1`).
 - [x] Create database provider abstraction and resolver.
 - [x] Register resolver in DI.
 - [x] Refactor session factory to use abstraction (dialect/driver/connection-string handling).
@@ -16,6 +17,7 @@
 - _none_
 
 ## Done
+- `Fix PostgreSQL boolean literal mismatch in migration 002 (TRUE/FALSE vs 0/1)`
 - `Create database provider abstraction and resolver`
 - `Register resolver in DI`
 - `Refactor session factory to use abstraction (dialect/driver/connection-string handling)`
