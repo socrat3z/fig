@@ -1,6 +1,10 @@
 name: "Deploy to Private Docker Registry"
 
 on:
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
     workflow_run:
         workflows: ["Create Release"]
         types:
@@ -15,22 +19,25 @@ permissions:
     deployments: write
 
 env:
-    DOCKER_REGISTRY: ${{ secrets.SOLID_DOCKER_REGISTRY_URL }}
-    DOCKER_USERNAME: ${{ secrets.SOLID_DOCKER_REGISTRY_USERNAME }}
-    DOCKER_PASSWORD: ${{ secrets.SOLID_DOCKER_REGISTRY_PASSWORD }}
+    DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+    DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+    DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
 jobs:
     build:
         name: Build and push images
         runs-on: ubuntu-latest
-        if: ${{ github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') }}
+        if: >
+            github.event_name == 'push' ||
+            github.event_name == 'pull_request' ||
+            (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
 
         steps:
             - name: Checkout
               uses: actions/checkout@v4
               with:
                   fetch-depth: 0
-                  ref: ${{ github.event.workflow_run.head_branch }}
+                  ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || github.sha }}
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
@@ -38,14 +45,22 @@ jobs:
             - name: Get version
               id: version
               run: |
-                  version="${{ github.event.workflow_run.head_branch }}"
-                  version=${version#v}
+                  if [ "${{ github.event_name }}" == "workflow_run" ]; then
+                    version="${{ github.event.workflow_run.head_branch }}"
+                    version=${version#v}
+                    echo "should_push=true" >> $GITHUB_OUTPUT
+                  else
+                    version="${GITHUB_SHA:0:7}"
+                    echo "should_push=false" >> $GITHUB_OUTPUT
+                  fi
                   echo "version-without-v=$version" >> $GITHUB_OUTPUT
                   echo "IMAGE_WEB=${{ env.DOCKER_REGISTRY }}/fig-web" >> $GITHUB_ENV
                   echo "IMAGE_API=${{ env.DOCKER_REGISTRY }}/fig-api" >> $GITHUB_ENV
                   echo "IMAGE_SENTINEL=${{ env.DOCKER_REGISTRY }}/fig-sentinel-integration" >> $GITHUB_ENV
+              shell: bash
 
             - name: Login to Docker registry
+              if: steps.version.outputs.should_push == 'true'
               uses: docker/login-action@v3
               with:
                   registry: ${{ env.DOCKER_REGISTRY }}
@@ -58,7 +73,7 @@ jobs:
               with:
                   context: ./src
                   file: ./src/web/Fig.Web/Dockerfile
-                  push: true
+                  push: ${{ steps.version.outputs.should_push == 'true' }}
                   tags: ${{ env.IMAGE_WEB }}:latest,${{ env.IMAGE_WEB }}:${{ steps.version.outputs.version-without-v }}
 
             - name: Build and push Api
@@ -67,7 +82,7 @@ jobs:
               with:
                   context: ./src
                   file: ./src/api/Fig.Api/Dockerfile
-                  push: true
+                  push: ${{ steps.version.outputs.should_push == 'true' }}
                   tags: ${{ env.IMAGE_API }}:latest,${{ env.IMAGE_API }}:${{ steps.version.outputs.version-without-v }}
 
             # - name: Build and push Microsoft Sentinel Integration
@@ -76,19 +91,20 @@ jobs:
             #   with:
             #       context: ./src
             #       file: ./src/integrations/Fig.Integration.MicrosoftSentinel/Dockerfile
-            #       push: true
+            #       push: ${{ steps.version.outputs.should_push == 'true' }}
             #       tags: ${{ env.IMAGE_SENTINEL }}:latest,${{ env.IMAGE_SENTINEL }}:${{ steps.version.outputs.version-without-v }}
 
             - name: Create GitHub deployment
               uses: chrnorm/deployment-action@v2
               id: gh_deployment
+              if: steps.version.outputs.should_push == 'true'
               with:
                   token: ${{ github.token }}
                   environment: production
                   ref: ${{ github.event.workflow_run.head_branch }}
 
             - name: Update deployment status (success)
-              if: steps.docker_build_web.outcome == 'success' && steps.docker_build_api.outcome == 'success'
+              if: steps.version.outputs.should_push == 'true' && steps.docker_build_web.outcome == 'success' && steps.docker_build_api.outcome == 'success'
               uses: chrnorm/deployment-status@v2
               with:
                   token: ${{ github.token }}
@@ -96,7 +112,7 @@ jobs:
                   deployment-id: ${{ steps.gh_deployment.outputs.deployment_id }}
 
             - name: Update deployment status (failure)
-              if: always() && steps.gh_deployment.outputs.deployment_id != '' && (steps.docker_build_web.outcome == 'failure' || steps.docker_build_api.outcome == 'failure')
+              if: always() && steps.version.outputs.should_push == 'true' && steps.gh_deployment.outputs.deployment_id != '' && (steps.docker_build_web.outcome == 'failure' || steps.docker_build_api.outcome == 'failure')
               uses: chrnorm/deployment-status@v2
               with:
                   token: ${{ github.token }}
@@ -106,9 +122,14 @@ jobs:
             - name: Build summary
               if: steps.docker_build_web.outcome == 'success' && steps.docker_build_api.outcome == 'success'
               run: |
-                  echo "## Deploy to Private Docker Registry - Summary" >> $GITHUB_STEP_SUMMARY
+                  if [ "${{ steps.version.outputs.should_push }}" == "true" ]; then
+                    echo "## Deploy to Private Docker Registry - Deployment Summary" >> $GITHUB_STEP_SUMMARY
+                  else
+                    echo "## Deploy to Private Docker Registry - Build Summary (${{ github.event_name }})" >> $GITHUB_STEP_SUMMARY
+                  fi
                   echo "- **Version:** ${{ steps.version.outputs.version-without-v }}" >> $GITHUB_STEP_SUMMARY
-                  echo "- **Images pushed:**" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Pushed:** ${{ steps.version.outputs.should_push }}" >> $GITHUB_STEP_SUMMARY
+                  echo "- **Images:**" >> $GITHUB_STEP_SUMMARY
                   echo "  - \`${{ env.IMAGE_WEB }}:${{ steps.version.outputs.version-without-v }}\`" >> $GITHUB_STEP_SUMMARY
                   echo "  - \`${{ env.IMAGE_API }}:${{ steps.version.outputs.version-without-v }}\`" >> $GITHUB_STEP_SUMMARY
                   # echo "  - \`${{ env.IMAGE_SENTINEL }}:${{ steps.version.outputs.version-without-v }}\`" >> $GITHUB_STEP_SUMMARY
