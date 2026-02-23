@@ -547,20 +547,20 @@ public class SettingClientFacade : ISettingClientFacade
 
     private async Task<List<SettingsClientDefinitionDataContract>> LoadSettings()
     {
-        return await _httpService.GetLarge<List<SettingsClientDefinitionDataContract>>("/clients") ??
+        return await _httpService.GetLarge<List<SettingsClientDefinitionDataContract>>("clients") ??
                new List<SettingsClientDefinitionDataContract>();
     }
     
     private async Task<ClientsDescriptionDataContract> LoadDescriptions()
     {
-        return await _httpService.GetLarge<ClientsDescriptionDataContract>("/clients/descriptions") ??
+        return await _httpService.GetLarge<ClientsDescriptionDataContract>("clients/descriptions") ??
                new ClientsDescriptionDataContract([]);
     }
 
     private string GetClientUri(SettingClientConfigurationModel client, string postRoute = "/settings")
     {
         var clientName = Uri.EscapeDataString(client.Name);
-        var uri = $"/clients/{clientName}{postRoute}";
+        var uri = $"clients/{clientName}{postRoute}";
 
         if (client.Instance != null)
             uri += $"?instance={Uri.EscapeDataString(client.Instance)}";

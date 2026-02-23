@@ -73,7 +73,7 @@ public class AccountService : IAccountService
         {
             // Make a simple authenticated request to validate the token
             // Use a lightweight endpoint that doesn't require specific permissions
-            var result = await _httpService.Get<object>("/users", false); // Don't show notifications for this validation
+            var result = await _httpService.Get<object>("users", false); // Don't show notifications for this validation
             return result != null;
         }
         catch (HttpRequestException)
@@ -93,7 +93,7 @@ public class AccountService : IAccountService
     public async Task Login(LoginModel model)
     {
         var dataContract = new AuthenticateRequestDataContract(model.Username!, model.Password!);
-        var user = await _httpService.Post<AuthenticateResponseDataContract>("/users/authenticate", dataContract);
+        var user = await _httpService.Post<AuthenticateResponseDataContract>("users/authenticate", dataContract);
 
         if (user == null)
             throw new Exception("Invalid user");
@@ -126,17 +126,17 @@ public class AccountService : IAccountService
 
     public async Task<Guid> Register(RegisterUserRequestDataContract userRegistration)
     {
-        return await _httpService.Post<Guid>("/users/register", userRegistration);
+        return await _httpService.Post<Guid>("users/register", userRegistration);
     }
 
     public async Task<IList<UserDataContract>> GetAll()
     {
-        return await _httpService.Get<IList<UserDataContract>>("/users") ?? new List<UserDataContract>();
+        return await _httpService.Get<IList<UserDataContract>>("users") ?? new List<UserDataContract>();
     }
 
     public async Task Update(Guid id, UpdateUserRequestDataContract update)
     {
-        await _httpService.Put($"/users/{id}", update);
+        await _httpService.Put($"users/{id}", update);
 
         // update stored user if the logged in user updated their own record
         if (id == AuthenticatedUser?.Id)
@@ -156,7 +156,7 @@ public class AccountService : IAccountService
 
     public async Task Delete(Guid id)
     {
-        await _httpService.Delete($"/users/{id}");
+        await _httpService.Delete($"users/{id}");
 
         // auto logout if the logged in user deleted their own record
         if (id == AuthenticatedUser?.Id)
