@@ -1,6 +1,6 @@
 #!/bin/sh
 
-sed -i "s|https:\/\/localhost:7281|$FIG_API_URI|g" /usr/share/nginx/html/appsettings.json
+sed -i "s|\"ApiUri\": \"[^\"]*\"|\"ApiUri\": \"$FIG_API_URI\"|g" /usr/share/nginx/html/appsettings.json
 
 if [ -n "$FIG_WEB_SSL_PORT" ] && [ -n "$SSL_CERT_PATH" ] && [ -n "$SSL_KEY_PATH" ]; then
   if [ -n "$SSL_TRUSTED_CERT_PATH" ]; then
