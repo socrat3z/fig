@@ -45,6 +45,42 @@ internal class DataGridDefaultValueProvider : IDataGridDefaultValueProvider
         return result;
     }
 
+    public List<Dictionary<string, object?>>? ConvertDictionary(object? value, List<DataGridColumnDataContract> columns)
+    {
+        if (value is not IDictionary dict || dict.Count == 0)
+            return null;
+
+        var result = new List<Dictionary<string, object?>>();
+        var valueColumnNames = columns.Skip(1).Select(c => c.Name).ToList();
+
+        foreach (DictionaryEntry entry in dict)
+        {
+            var row = new Dictionary<string, object?> { ["Key"] = entry.Key?.ToString() };
+
+            if (entry.Value is null)
+            {
+                // nothing extra to add
+            }
+            else if (valueColumnNames.Count == 0 && columns.Any(c => c.Name == "Value"))
+            {
+                // Dictionary<string, primitive>
+                var primitiveVal = entry.Value;
+                row["Value"] = entry.Value.GetType().IsEnum() ? primitiveVal.ToString() : primitiveVal;
+            }
+            else
+            {
+                // Dictionary<string, ComplexType>
+                var properties = GetValidPropertiesAndValues(valueColumnNames, entry.Value);
+                foreach (var kvp in properties)
+                    row[kvp.Key] = kvp.Value;
+            }
+
+            result.Add(row);
+        }
+
+        return result;
+    }
+
     private Dictionary<string, object?> GetValidPropertiesAndValues(IEnumerable<string> columnNames, object item)
     {
         var result = new Dictionary<string, object?>();
@@ -56,7 +92,7 @@ internal class DataGridDefaultValueProvider : IDataGridDefaultValueProvider
             {
                 value = value.ToString();
             }
-            
+
             result.Add(property.Name, value);
         }
 

@@ -483,6 +483,16 @@ internal class SettingDefinitionFactory : ISettingDefinitionFactory
             else
                 SetTypeAndDefaultValue(settingDetails.DefaultValue, settingDetails.Property.PropertyType);
         }
+        else if (settingDetails.Property.PropertyType.IsSupportedDictionaryType())
+        {
+            setting.ValueType = typeof(List<Dictionary<string, object>>);
+            var columns = CreateDictionaryDataGridColumns(settingDetails.Property.PropertyType, setting.ValidValues);
+            var isLocked = GetIsLocked(settingDetails.Property);
+            setting.DataGridDefinition = new DataGridDefinitionDataContract(columns, isLocked, isDictionary: true);
+            var defaultValue = settingDetails.Property.GetValue(settingDetails.ParentInstance);
+            var dataGridDefault = _dataGridDefaultValueProvider.ConvertDictionary(defaultValue, columns);
+            setting.DefaultValue = new DictionaryDataGridSettingDataContract(dataGridDefault);
+        }
         else if (settingDetails.Property.PropertyType.IsSupportedDataGridType())
         {
             setting.ValueType = typeof(List<Dictionary<string, object>>);
@@ -578,6 +588,83 @@ internal class SettingDefinitionFactory : ISettingDefinitionFactory
         }
 
         return validValues;
+    }
+
+    private List<DataGridColumnDataContract> CreateDictionaryDataGridColumns(Type propertyType, List<string>? parentValidValues)
+    {
+        var result = new List<DataGridColumnDataContract>();
+        // First column is always the dictionary key
+        result.Add(new DataGridColumnDataContract("Key", typeof(string)));
+
+        var valueType = propertyType.GetGenericArguments()[1];
+
+        if (valueType.IsSupportedBaseType())
+        {
+            // Dictionary<string, primitive> — second column is "Value"
+            result.Add(new DataGridColumnDataContract("Value", valueType, parentValidValues));
+        }
+        else
+        {
+            // Dictionary<string, ComplexType> — remaining columns from complex type properties
+            foreach (var property in valueType.GetProperties(
+                             BindingFlags.Public | BindingFlags.Instance)
+                                       .Where(p => p.GetGetMethod() != null &&
+                                                   p.GetSetMethod() != null))
+            {
+                var ignore = GetIsIgnore(property);
+                if (ignore)
+                    continue;
+
+                DataGridColumnDataContract column;
+                if (property.PropertyType.IsEnum())
+                {
+                    var validValues = GetEnumValues(property.PropertyType);
+                    column = new DataGridColumnDataContract(property.Name, typeof(string), validValues);
+                }
+                else
+                {
+                    var validValues = GetValidValues(property);
+                    var editorLineCount = GetEditorLineCount(property);
+                    var isReadOnly = GetIsReadOnly(property);
+                    var validation = GetValidation(property);
+                    var isSecret = GetIsSecret(property);
+
+                    if (isSecret && property.PropertyType != typeof(string))
+                        throw new InvalidSettingException(
+                            $"[Secret] on DataGrid column '{property.Name}': Secrets can only be applied to string columns.");
+
+                    if (property.PropertyType.IsEnumerableType())
+                    {
+                        if (property.PropertyType == typeof(List<string>))
+                        {
+                            if (validValues?.Any() != true)
+                                throw new InvalidSettingException(
+                                    $"DataGrid column '{property.Name}': String collections must have valid values defined. " +
+                                    $"Add [ValidValues(\"Value1\", \"Value2\")] to the property.");
+                        }
+                        else
+                        {
+                            throw new InvalidSettingException(
+                                $"DataGrid column '{property.Name}': Only List<string> with valid values is supported for collection properties.");
+                        }
+                    }
+
+                    column = new DataGridColumnDataContract(
+                        property.Name,
+                        property.PropertyType,
+                        validValues?.ToList(),
+                        editorLineCount,
+                        isReadOnly,
+                        validation.Regex,
+                        validation.Explanation,
+                        isSecret);
+                }
+
+                result.Add(column);
+            }
+        }
+
+        return result;
     }
 
     private List<DataGridColumnDataContract> CreateDataGridColumns(Type propertyType, List<string>? parentValidValues)
@@ -773,7 +860,7 @@ internal class SettingDefinitionFactory : ISettingDefinitionFactory
         var underlyingType = Nullable.GetUnderlyingType(type) ?? type;
         
         // Check if it's a supported base type, data grid, or enum
-        if (type.IsSupportedBaseType() || type.IsSupportedDataGridType() || type.IsEnum())
+        if (type.IsSupportedBaseType() || type.IsSupportedDataGridType() || type.IsSupportedDictionaryType() || type.IsEnum())
         {
             return false;
         }

@@ -103,10 +103,10 @@ namespace Fig.Contracts.ExtensionMethods
                 {
                     if (arguments[0].FigPropertyType() != Contracts.FigPropertyType.Unsupported)
                         return true;
-                    
+
                     if (arguments[0] == typeof(Dictionary<string, object>)) // Could be this for imports
                         return true;
-                    
+
                     var properties = arguments[0].GetProperties();
                     if (properties.All(property =>
                             property.PropertyType.FigPropertyType() != Contracts.FigPropertyType.Unsupported ||
@@ -115,6 +115,38 @@ namespace Fig.Contracts.ExtensionMethods
                         return true;
                     }
                 }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Returns true when the type is Dictionary&lt;string, T&gt; where T is either a supported base type
+        /// or a class whose public properties are all supported types.
+        /// </summary>
+        public static bool IsSupportedDictionaryType(this Type type)
+        {
+            if (!type.IsGenericType)
+                return false;
+
+            if (type.GetGenericTypeDefinition() != typeof(Dictionary<,>))
+                return false;
+
+            var args = type.GetGenericArguments();
+            if (args[0] != typeof(string))
+                return false;
+
+            var valueType = args[1];
+
+            if (valueType.IsSupportedBaseType())
+                return true;
+
+            if (valueType.IsClass && valueType != typeof(string))
+            {
+                var properties = valueType.GetProperties();
+                return properties.Length > 0 && properties.All(p =>
+                    p.PropertyType.FigPropertyType() != Contracts.FigPropertyType.Unsupported ||
+                    p.PropertyType.IsEnum());
             }
 
             return false;

@@ -54,9 +54,33 @@ public class TypeExtensionMethodsTest
         Assert.That(result, Is.EqualTo(isSupported), $"{type.Name} -> IsSupported:{isSupported}");
     }
 
+    [Test]
+    [TestCase(typeof(Dictionary<string, string>), true)]
+    [TestCase(typeof(Dictionary<string, int>), true)]
+    [TestCase(typeof(Dictionary<string, bool>), true)]
+    [TestCase(typeof(Dictionary<string, double>), true)]
+    [TestCase(typeof(Dictionary<string, SomeClass>), true)]
+    [TestCase(typeof(Dictionary<int, string>), false)]  // non-string key
+    [TestCase(typeof(Dictionary<string, object>), false)]  // object has no typed properties
+    [TestCase(typeof(Dictionary<string, UnsupportedValueClass>), false)]  // value props use unsupported types
+    [TestCase(typeof(List<string>), false)]
+    [TestCase(typeof(string), false)]
+    [TestCase(typeof(SomeClass), false)]
+    [TestCase(typeof(Animals), false)]
+    public void ShallSupportDictionaryTypes(Type type, bool isSupported)
+    {
+        var result = type.IsSupportedDictionaryType();
+        Assert.That(result, Is.EqualTo(isSupported), $"{type.Name} -> IsSupported:{isSupported}");
+    }
+
     public class SomeClass
     {
         public string? Sample { get; set; }
+    }
+
+    public class UnsupportedValueClass
+    {
+        public float FloatValue { get; set; }  // float is not a supported Fig type
     }
 
     public enum Animals

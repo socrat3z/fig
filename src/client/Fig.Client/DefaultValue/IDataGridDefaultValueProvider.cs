@@ -6,4 +6,5 @@ namespace Fig.Client.DefaultValue;
 internal interface IDataGridDefaultValueProvider
 {
     List<Dictionary<string, object?>>? Convert(object? value, List<DataGridColumnDataContract> columns);
+    List<Dictionary<string, object?>>? ConvertDictionary(object? value, List<DataGridColumnDataContract> columns);
 }

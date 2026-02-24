@@ -18,7 +18,8 @@ public class SettingConverter : ISettingConverter
 
     public SettingDataContract Convert(SettingBusinessEntity setting)
     {
-        return new SettingDataContract(setting.Name, Convert(setting.Value, setting.HasSchema()), setting.IsSecret);
+        var definition = setting.GetDataGridDefinition();
+        return new SettingDataContract(setting.Name, Convert(setting.Value, setting.HasSchema(), definition), setting.IsSecret);
     }
 
     public SettingBusinessEntity Convert(SettingDataContract setting, SettingBusinessEntity? originalSetting)
@@ -51,6 +52,7 @@ public class SettingConverter : ISettingConverter
             StringSettingBusinessEntity s when hasSchema => new JsonSettingDataContract(s.Value),
             StringSettingBusinessEntity s => new StringSettingDataContract(s.Value),
             BoolSettingBusinessEntity s => new BoolSettingDataContract(s.Value),
+            DataGridSettingBusinessEntity s when dataGridDefinition?.IsDictionary == true => GetDictionaryDataGridDataContract(s.Value, dataGridDefinition),
             DataGridSettingBusinessEntity s => GetDataGridDataContract(s.Value, dataGridDefinition),
             DateTimeSettingBusinessEntity s => new DateTimeSettingDataContract(s.Value),
             DoubleSettingBusinessEntity s => new DoubleSettingDataContract(s.Value),
@@ -71,6 +73,7 @@ public class SettingConverter : ISettingConverter
         {
             StringSettingDataContract s => new StringSettingBusinessEntity(s.Value),
             BoolSettingDataContract s => new BoolSettingBusinessEntity(s.Value),
+            DictionaryDataGridSettingDataContract s => GetDataGridBusinessEntity(s.Value, originalSetting),
             DataGridSettingDataContract s => GetDataGridBusinessEntity(s.Value, originalSetting),
             DateTimeSettingDataContract s => new DateTimeSettingBusinessEntity(s.Value),
             DoubleSettingDataContract s => new DoubleSettingBusinessEntity(s.Value),
@@ -116,19 +119,29 @@ public class SettingConverter : ISettingConverter
 
     private SettingValueBaseDataContract? GetDataGridDataContract(List<Dictionary<string,object?>>? value, DataGridDefinitionDataContract? dataGridDefinition)
     {
+        MaskSecretColumns(value, dataGridDefinition);
+        return new DataGridSettingDataContract(value);
+    }
+
+    private SettingValueBaseDataContract? GetDictionaryDataGridDataContract(List<Dictionary<string, object?>>? value, DataGridDefinitionDataContract? dataGridDefinition)
+    {
+        MaskSecretColumns(value, dataGridDefinition);
+        return new DictionaryDataGridSettingDataContract(value);
+    }
+
+    private static void MaskSecretColumns(List<Dictionary<string, object?>>? value, DataGridDefinitionDataContract? dataGridDefinition)
+    {
         foreach (var column in dataGridDefinition?.Columns.Where(a => a.IsSecret) ?? [])
         {
             foreach (var row in value ?? [])
             {
-                if (row.TryGetValue(column.Name, out var val) && 
-                    val is string strValue && 
+                if (row.TryGetValue(column.Name, out var val) &&
+                    val is string strValue &&
                     !string.IsNullOrWhiteSpace(strValue))
                 {
                     row[column.Name] = SecretConstants.SecretPlaceholder;
                 }
             }
         }
-
-        return new DataGridSettingDataContract(value);
     }
 }

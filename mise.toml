@@ -10,17 +10,7 @@ run = "dotnet build src/Fig.sln --configuration Debug --no-restore"
 [tasks.test]
 description = "Run all tests in solution"
 depends = ["build"]
-run = "dotnet test src/Fig.sln --no-build"
-
-[tasks.test_unit]
-description = "Run unit tests"
-depends = ["build"]
-run = "dotnet test src/tests/Fig.Unit.Test/Fig.Unit.Test.csproj --no-build"
-
-[tasks.test_integration]
-description = "Run integration tests"
-depends = ["build"]
-run = "dotnet test src/tests/Fig.Integration.Test/Fig.Integration.Test.csproj --no-build"
+run = "dotnet test src/Fig.sln --configuration Release --no-build --verbosity minimal"
 
 [tasks.pack]
 description = "Build non-testing NuGet packages to artifacts/nuget"
@@ -45,6 +35,51 @@ for project in "${projects[@]}"; do
   dotnet pack "$project" --configuration Release --no-restore --output artifacts/nuget
 done
 """
+
+[tasks.clean]
+description = "Clean build artifacts and bin/obj directories"
+run = """
+cd src
+dotnet clean Fig.sln --configuration Debug
+dotnet clean Fig.sln --configuration Release
+"""
+
+[tasks.build-solution]
+description = "Build entire solution in Release configuration"
+depends = ["restore"]
+run = "dotnet build src/Fig.sln --configuration Release --no-restore"
+
+[tasks.build-minimal]
+description = "Build minimal projects (client, common, contracts)"
+depends = ["restore"]
+run = """
+projects=(
+  src/client/Fig.Client.Abstractions/Fig.Client.Abstractions.csproj
+  src/client/Fig.Client.Contracts/Fig.Client.Contracts.csproj
+  src/client/Fig.Client/Fig.Client.csproj
+  src/common/Fig.Common/Fig.Common.csproj
+  src/common/Fig.Common.NetStandard/Fig.Common.NetStandard.csproj
+)
+
+for project in "${projects[@]}"; do
+  dotnet build "$project" --configuration Release --no-restore
+done
+"""
+
+[tasks.test-unit]
+description = "Run unit tests only"
+depends = ["build"]
+run = "dotnet test src/tests/Fig.Unit.Test/Fig.Unit.Test.csproj --configuration Release --no-build --verbosity minimal"
+
+[tasks.test-integration]
+description = "Run integration tests only"
+depends = ["build"]
+run = "dotnet test src/tests/Fig.Integration.Test/Fig.Integration.Test.csproj --configuration Release --no-build --verbosity minimal"
+
+[tasks.test-e2e]
+description = "Run end-to-end tests (Playwright)"
+depends = ["build"]
+run = "dotnet test src/tests/Fig.EndToEnd.Tests/Fig.EndToEnd.Tests.csproj --configuration Release --no-build"
 
 [tasks.api_run]
 description = "Run Fig API from source"

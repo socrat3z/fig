@@ -1,7 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
+using System.Reflection;
 using Fig.Contracts.ExtensionMethods;
 using Fig.Contracts.Settings;
 using Newtonsoft.Json.Linq;
@@ -12,10 +15,11 @@ public static class ValueDataContractFactory
 {
     public static SettingValueBaseDataContract CreateContract(object? value, Type type)
     {
+        if (type.IsSupportedDictionaryType())
+            return CreateDictionaryDataGrid(value);
+
         if (type.IsSupportedDataGridType())
-        {
             return CreateDataGrid(value);
-        }
 
         return ConvertAndReturnDataContract(value, type);
     }
@@ -75,5 +79,33 @@ public static class ValueDataContractFactory
         }
 
         return new DataGridSettingDataContract(null);
+    }
+
+    private static DictionaryDataGridSettingDataContract CreateDictionaryDataGrid(object? value)
+    {
+        if (value is not IDictionary dict || dict.Count == 0)
+            return new DictionaryDataGridSettingDataContract(null);
+
+        var result = new List<Dictionary<string, object?>>();
+        foreach (DictionaryEntry entry in dict)
+        {
+            var row = new Dictionary<string, object?> { ["Key"] = entry.Key?.ToString() };
+
+            if (entry.Value is not null)
+            {
+                var props = entry.Value.GetType()
+                    .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                    .Where(p => p.GetGetMethod() != null);
+                foreach (var prop in props)
+                {
+                    var propVal = prop.GetValue(entry.Value);
+                    row[prop.Name] = prop.PropertyType.IsEnum() ? propVal?.ToString() : propVal;
+                }
+            }
+
+            result.Add(row);
+        }
+
+        return new DictionaryDataGridSettingDataContract(result);
     }
 }
