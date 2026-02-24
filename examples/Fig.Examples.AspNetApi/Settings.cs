@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fig.Client.Abstractions.Attributes;
 using Fig.Client.Abstractions.Data;
 using Fig.Client.Abstractions.Enums;
@@ -61,10 +62,12 @@ public class Settings : SettingsBase
     [Category("General", CategoryColor.Green)]
     public string Location { get; set; } = string.Empty;
 
-    [Setting("A list of items")]
+    [Setting("A list of items", defaultValueMethodName: nameof(GetDefaultItems))]
     [Category("General", CategoryColor.Green)]
     [ValidateCount(Constraint.AtLeast, 3)]
     public List<string>? Items { get; set; }
+
+    public static List<string> GetDefaultItems() => ["item1", "item2", "item3"];
 
     [Setting("The Jira Type")]
     [Category("Jira", CategoryColor.Orange)]
@@ -80,6 +83,14 @@ public class Settings : SettingsBase
     [Category<MyCustomCategories>(MyCustomCategories.PaymentProcessing)]
     public string EnvironmentName { get; set; } = "Development";
 
+    [Setting("Feature flags per feature name")]
+    [Category("Feature Flags", CategoryColor.Blue)]
+    public Dictionary<string, FeatureConfig> FeatureFlags { get; set; } = new()
+    {
+        ["DarkMode"] = new FeatureConfig { Enabled = true, RolloutPercentage = 100 },
+        ["BetaSearch"] = new FeatureConfig { Enabled = false, RolloutPercentage = 10 }
+    };
+
     public override IEnumerable<string> GetValidationErrors()
     {
         //Perform validation here.
@@ -91,4 +102,10 @@ public class DatabaseSettings
 {
     [Setting("Database name")]
     public string Name { get; set; } = "MoyAppDb";
+}
+
+public class FeatureConfig
+{
+    public bool Enabled { get; set; }
+    public int RolloutPercentage { get; set; }
 }

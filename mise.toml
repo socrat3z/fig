@@ -15,6 +15,7 @@ run = "dotnet test src/Fig.sln --configuration Release --no-build --verbosity mi
 [tasks.pack]
 description = "Build non-testing NuGet packages to artifacts/nuget"
 depends = ["restore"]
+shell = "bash"
 run = """
 mkdir -p artifacts/nuget
 
@@ -52,6 +53,7 @@ run = "dotnet build src/Fig.sln --configuration Release --no-restore"
 [tasks.build-minimal]
 description = "Build minimal projects (client, common, contracts)"
 depends = ["restore"]
+shell = "bash"
 run = """
 projects=(
   src/client/Fig.Client.Abstractions/Fig.Client.Abstractions.csproj
@@ -81,13 +83,17 @@ description = "Run end-to-end tests (Playwright)"
 depends = ["build"]
 run = "dotnet test src/tests/Fig.EndToEnd.Tests/Fig.EndToEnd.Tests.csproj --configuration Release --no-build"
 
-[tasks.api_run]
+[tasks.api]
 description = "Run Fig API from source"
 run = "dotnet run --project src/api/Fig.Api/Fig.Api.csproj"
 
-[tasks.web_run]
+[tasks.web]
 description = "Run Fig Web from source"
 run = "dotnet run --project src/web/Fig.Web/Fig.Web.csproj"
+
+[tasks.aspire]
+description = "Run Fig Aspire orchestrator"
+run = "dotnet run --project src/hosting/Fig.AppHost/Fig.AppHost.csproj"
 
 [tasks.pg_up]
 description = "Start PostgreSQL-based local dev stack (prebuilt images)"

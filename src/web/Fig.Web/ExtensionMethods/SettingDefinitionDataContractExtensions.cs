@@ -18,20 +18,17 @@ public static class SettingDefinitionDataContractExtensions
         if (dataContract.ValueType?.Is(FigPropertyType.DataGrid) != true)
             return dataContract.Value?.GetValue();
 
-        DataGridSettingDataContract? dataGridValue;
+        List<Dictionary<string, object?>> rows;
         if (dataContract.Value?.GetValue() != null && !preferDefault)
-            dataGridValue = (DataGridSettingDataContract)dataContract.Value;
+            rows = ExtractRows(dataContract.Value) ?? new List<Dictionary<string, object?>>();
         else if (dataContract.DefaultValue != null)
-            dataGridValue = (DataGridSettingDataContract?)dataContract.DefaultValue;
+            rows = ExtractRows(dataContract.DefaultValue) ?? new List<Dictionary<string, object?>>();
         else
-            dataGridValue = new DataGridSettingDataContract(new List<Dictionary<string, object?>>());
-
-
-        dataGridValue!.Value ??= new List<Dictionary<string, object?>>();
+            rows = new List<Dictionary<string, object?>>();
 
         var result = new List<Dictionary<string, IDataGridValueModel>>();
 
-        foreach (Dictionary<string, object?> row in dataGridValue.Value)
+        foreach (Dictionary<string, object?> row in rows)
         {
             var newRow = new Dictionary<string, IDataGridValueModel>();
             foreach (var column in dataContract.DataGridDefinition?.Columns ?? Array.Empty<DataGridColumnDataContract>().ToList())
@@ -62,6 +59,14 @@ public static class SettingDefinitionDataContractExtensions
         return dataContract.DefaultValue?.GetValue();
     }
     
+    private static List<Dictionary<string, object?>>? ExtractRows(SettingValueBaseDataContract? contract) =>
+        contract switch
+        {
+            DataGridSettingDataContract d => d.Value,
+            DictionaryDataGridSettingDataContract d => d.Value,
+            _ => null
+        };
+
     private static object? GetDefault(Type type)
     {
         return type.GetTypeInfo().IsValueType ? Activator.CreateInstance(type) : null;

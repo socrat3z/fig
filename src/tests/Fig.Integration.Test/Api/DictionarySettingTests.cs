@@ -119,4 +119,42 @@ public class DictionarySettingTests : IntegrationTestBase
         Assert.That(settings.CurrentValue.Thresholds["dev"], Is.EqualTo(100));
         Assert.That(settings.CurrentValue.Thresholds["prod"], Is.EqualTo(500));
     }
+
+    [Test]
+    public async Task ShallRemoveOldKeyWhenDictionaryKeyIsRenamed()
+    {
+        var secret = GetNewSecret();
+        var (settings, configuration) = InitializeConfigurationProvider<ClientWithDictionaries>(secret);
+
+        var initialRows = new List<Dictionary<string, object?>>
+        {
+            new() { ["Key"] = "old-region", ["MaxSize"] = 512L, ["Location"] = "London" },
+        };
+
+        await SetSettings(settings.CurrentValue.ClientName, new List<SettingDataContract>
+        {
+            new(nameof(settings.CurrentValue.Regions), new DictionaryDataGridSettingDataContract(initialRows))
+        });
+
+        configuration.Reload();
+
+        Assert.That(settings.CurrentValue.Regions.ContainsKey("old-region"), Is.True);
+
+        // Rename the key
+        var renamedRows = new List<Dictionary<string, object?>>
+        {
+            new() { ["Key"] = "new-region", ["MaxSize"] = 512L, ["Location"] = "London" },
+        };
+
+        await SetSettings(settings.CurrentValue.ClientName,
+        [
+            new(nameof(settings.CurrentValue.Regions), new DictionaryDataGridSettingDataContract(renamedRows))
+        ]);
+
+        configuration.Reload();
+
+        Assert.That(settings.CurrentValue.Regions.ContainsKey("old-region"), Is.False, "Old key must be removed after rename");
+        Assert.That(settings.CurrentValue.Regions.ContainsKey("new-region"), Is.True, "New key must be present after rename");
+        Assert.That(settings.CurrentValue.Regions.Count, Is.EqualTo(1));
+    }
 }
